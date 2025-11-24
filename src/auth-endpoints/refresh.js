@@ -1,12 +1,12 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { options as testOptions } from '../utils/config.js';
+import { options as testOptions } from '../../utils/config.js';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
   BASE_URL
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const refreshUrl = getUrl('/auth/refresh');

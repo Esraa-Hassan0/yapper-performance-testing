@@ -1,12 +1,12 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { string as randString } from '../utils/random.js';
+import { string as randString } from '../../utils/random.js';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const createTweetUrl = getUrl('/tweets');
@@ -43,10 +43,10 @@ export default function () {
 
   sleep(randomeSeconds(1, 2));
 
-  // TEST 1: Create an original tweet
-  const originalContent = generateTweetContent();
+  // TEST 1: Create a tweet
+  const tweetContent = generateTweetContent();
   const createPayload = JSON.stringify({
-    content: originalContent
+    content: tweetContent
   });
 
   const createRes = http.post(createTweetUrl, createPayload, {
@@ -65,8 +65,8 @@ export default function () {
   let tweetId = null;
   try {
     tweetId = createRes.json().data.tweet_id;
-    console.log(`Created original tweet with ID: ${tweetId}`);
-    console.log(`Original content: "${originalContent}"`);
+    console.log(`Created tweet with ID: ${tweetId}`);
+    console.log(`Content: "${tweetContent}"`);
   } catch (e) {
     console.error('Failed to get tweet ID from response');
     return;
@@ -74,52 +74,44 @@ export default function () {
 
   sleep(randomeSeconds(1, 2));
 
-  // TEST 2: Quote the tweet with commentary
-  const quoteContent = `Quote: ${generateTweetContent()}`;
-  const quotePayload = JSON.stringify({
-    content: quoteContent
-  });
-
-  const quoteUrl = getUrl(`/tweets/${tweetId}/quote`);
-  const quoteRes = http.post(quoteUrl, quotePayload, {
+  // TEST 2: Repost the tweet
+  const repostUrl = getUrl(`/tweets/${tweetId}/repost`);
+  const repostRes = http.post(repostUrl, null, {
     headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
       Authorization: `Bearer ${token}`
     },
     responseCallback: http.expectedStatuses(201)
   });
 
-  check(quoteRes, {
-    'quote: status 201': (r) => r.status === 201,
-    'quote: type is quote': (r) => {
-      try {
-        return r.json().data.type === 'quote';
-      } catch {
-        return false;
-      }
-    },
-    'quote: has quoted_tweet': (r) => {
-      try {
-        return r.json().data.quoted_tweet.tweet_id === tweetId;
-      } catch {
-        return false;
-      }
-    }
+  check(repostRes, {
+    'repost: status 201': (r) => r.status === 201
   });
 
-  console.log('Quote tweet created successfully');
-  console.log(`Quote content: "${quoteContent}"`);
-  console.log('Quote response:', quoteRes.body);
+  console.log('Reposted tweet successfully');
+  console.log('Repost response:', repostRes.body);
   sleep(randomeSeconds(1, 2));
 
-  // TEST 3: Quote non-existent tweet -> expect 404
-  const fakeTweetId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
-  const quote404Url = getUrl(`/tweets/${fakeTweetId}/quote`);
-  const res404 = http.post(quote404Url, quotePayload, {
+  // TEST 3: Try to repost same tweet again -> expect 400 (already reposted)
+  const repost400Res = http.post(repostUrl, null, {
     headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    responseCallback: http.expectedStatuses(400, 409)
+  });
+
+  check(repost400Res, {
+    'repost again: status 400 or 409': (r) =>
+      r.status === 400 || r.status === 409
+  });
+
+  console.log('Already reposted response:', repost400Res.body);
+  sleep(randomeSeconds(1, 2));
+
+  // TEST 4: Repost non-existent tweet -> expect 404
+  const fakeTweetId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  const repost404Url = getUrl(`/tweets/${fakeTweetId}/repost`);
+  const res404 = http.post(repost404Url, null, {
+    headers: {
       Authorization: `Bearer ${token}`
     },
     responseCallback: http.expectedStatuses(404)
@@ -132,11 +124,9 @@ export default function () {
   console.log('Non-existent tweet response:', res404.body);
   sleep(randomeSeconds(0.5, 1.5));
 
-  // TEST 4: Quote with invalid token -> expect 401
-  const res401 = http.post(quoteUrl, quotePayload, {
+  // TEST 5: Repost with invalid token -> expect 401
+  const res401 = http.post(repostUrl, null, {
     headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
       Authorization: 'Bearer invalid'
     },
     responseCallback: http.expectedStatuses(401)

@@ -1,12 +1,12 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { int as randInt } from '../utils/random.js';
+import { int as randInt } from '../../utils/random.js';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const getTweetsUrl = getUrl('/tweets');

@@ -8,7 +8,7 @@ import {
   getUrl,
   email as marioEmail,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const checkIdentifierUrl = getUrl('/auth/check-identifier');
 

@@ -5,7 +5,7 @@ import {
   generateCredentials,
   getUrl,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const url = getUrl('/auth/login');
 

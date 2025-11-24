@@ -6,7 +6,7 @@ import {
   getUrl,
   generateStrongPassword,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const changePasswordUrl = getUrl('/auth/change-password');

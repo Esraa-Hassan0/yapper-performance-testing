@@ -1,4 +1,4 @@
-import { getUrl, options as testOptions } from '../utils/config.js';
+import { getUrl, options as testOptions } from '../../utils/config.js';
 import { check } from 'k6';
 import http from 'k6/http';
 

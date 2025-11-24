@@ -1,12 +1,12 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { string as randString } from '../utils/random.js';
+import { string as randString } from '../../utils/random.js';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const imagePath = open('../test-data/image.png', 'b');
 

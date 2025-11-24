@@ -5,7 +5,7 @@ import {
   getUrl,
   options as testOptions
 } from '../utils/config.js';
-import { email as randEmail } from '../utils/random.js';
+import { email as randEmail } from '../../utils/random.js';
 
 const signupUrl = getUrl('/auth/signup/step1');
 

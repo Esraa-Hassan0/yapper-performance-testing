@@ -1,12 +1,12 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { string as randString } from '../utils/random.js';
+import { string as randString } from '../../utils/random.js';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
   options as testOptions
-} from '../utils/config.js';
+} from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const createTweetUrl = getUrl('/tweets');
@@ -44,12 +44,12 @@ export default function () {
   sleep(randomeSeconds(1, 2));
 
   // TEST 1: Create a tweet
-  const originalContent = generateTweetContent();
-  const createPayload = JSON.stringify({
-    content: originalContent
+  const tweetContent = generateTweetContent();
+  const payload = JSON.stringify({
+    content: tweetContent
   });
 
-  const createRes = http.post(createTweetUrl, createPayload, {
+  const createRes = http.post(createTweetUrl, payload, {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -66,7 +66,7 @@ export default function () {
   try {
     tweetId = createRes.json().data.tweet_id;
     console.log(`Created tweet with ID: ${tweetId}`);
-    console.log(`Original content: "${originalContent}"`);
+    console.log(`Content: "${tweetContent}"`);
   } catch (e) {
     console.error('Failed to get tweet ID from response');
     return;
@@ -74,38 +74,7 @@ export default function () {
 
   sleep(randomeSeconds(1, 2));
 
-  // TEST 2: Update the tweet
-  const updatedContent = `Updated: ${generateTweetContent()}`;
-  const updatePayload = JSON.stringify({
-    content: updatedContent
-  });
-
-  const updateUrl = getUrl(`/tweets/${tweetId}`);
-  const updateRes = http.patch(updateUrl, updatePayload, {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    responseCallback: http.expectedStatuses(200)
-  });
-
-  check(updateRes, {
-    'update: status 200': (r) => r.status === 200,
-    'update: content changed': (r) => {
-      try {
-        return r.json().data.content === updatedContent;
-      } catch {
-        return false;
-      }
-    }
-  });
-
-  console.log(`Updated tweet content to: "${updatedContent}"`);
-  console.log('Update response:', updateRes.body);
-  sleep(randomeSeconds(1, 2));
-
-  // TEST 3: Get the tweet to verify update
+  // TEST 2: Get the tweet by ID
   const getTweetUrl = getUrl(`/tweets/${tweetId}`);
   const getRes = http.get(getTweetUrl, {
     headers: {
@@ -116,31 +85,45 @@ export default function () {
 
   check(getRes, {
     'get: status 200': (r) => r.status === 200,
-    'get: content is updated': (r) => {
+    'get: content matches': (r) => {
       try {
-        return r.json().data.content === updatedContent;
+        return r.json().data.content === tweetContent;
       } catch {
         return false;
       }
     },
-    'get: content is not original': (r) => {
+    'get: tweet_id matches': (r) => {
       try {
-        return r.json().data.content !== originalContent;
+        return r.json().data.tweet_id === tweetId;
       } catch {
         return false;
       }
     }
   });
 
-  console.log('Verified tweet was updated successfully');
   console.log('Retrieved tweet:', getRes.body);
   sleep(randomeSeconds(1, 2));
 
-  // TEST 4: Update with invalid token -> expect 401
-  const res401 = http.patch(updateUrl, updatePayload, {
+  // TEST 3: Get non-existent tweet -> expect 404
+  const fakeTweetId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  const get404Url = getUrl(`/tweets/${fakeTweetId}`);
+  const res404 = http.get(get404Url, {
     headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    responseCallback: http.expectedStatuses(404)
+  });
+
+  check(res404, {
+    'status 404': (r) => r.status === 404
+  });
+
+  console.log('Non-existent tweet response:', res404.body);
+  sleep(randomeSeconds(0.5, 1.5));
+
+  // TEST 4: Invalid token -> expect 401
+  const res401 = http.get(getTweetUrl, {
+    headers: {
       Authorization: 'Bearer invalid'
     },
     responseCallback: http.expectedStatuses(401)
