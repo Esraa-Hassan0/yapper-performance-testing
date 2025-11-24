@@ -26,7 +26,7 @@ function loginAndGetToken() {
   try {
     return res.json().data.access_token;
   } catch (e) {
-    console.error('❌ Login failed');
+    console.error('Login failed');
     return null;
   }
 }
@@ -40,7 +40,7 @@ function getCurrentUserId(token) {
   try {
     return res.json().data.user_id;
   } catch (e) {
-    console.error('❌ Failed to get current user');
+    console.error('Failed to get current user');
     return null;
   }
 }
@@ -69,7 +69,7 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log('📦 Test 1 Response (all tweets):', res1.body);
+  console.log('Test 1 Response (all tweets):', res1.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 2: Get tweets with custom limit
@@ -85,7 +85,7 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log(`📦 Test 2 Response (limit=${limit}):`, res2.body);
+  console.log(`Test 2 Response (limit=${limit}):`, res2.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 3: Get tweets by user_id
@@ -100,7 +100,7 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log('📦 Test 3 Response (by user_id):', res3.body);
+  console.log('Test 3 Response (by user_id):', res3.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 4: Get tweets with cursor pagination (if available)
@@ -123,7 +123,7 @@ export default function () {
       'status 200': (r) => r.status === 200
     });
 
-    console.log('📦 Test 4 Response (cursor pagination):', res4.body);
+    console.log('Test 4 Response (cursor pagination):', res4.body);
     sleep(randomeSeconds(0.5, 1.5));
   }
 
@@ -136,6 +136,6 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log('📦 Test 5 Response (no token - public):', res5.body);
+  console.log('Test 5 Response (no token - public):', res5.body);
   sleep(randomeSeconds(0.5, 1.5));
 }

@@ -25,7 +25,7 @@ function loginAndGetToken() {
   try {
     return res.json().data.access_token;
   } catch (e) {
-    console.error('❌ Login failed');
+    console.error('Login failed');
     return null;
   }
 }
@@ -45,14 +45,14 @@ function getCurrentUser(token) {
   try {
     return res.json().data.user_id;
   } catch (e) {
-    console.error('❌ Failed to get current user');
+    console.error('Failed to get current user');
     return null;
   }
 }
 
 export default function () {
   // Login
-  console.log('🔐 Login');
+  console.log('Login');
   const token = loginAndGetToken();
   if (!token) return;
   console.log(`Token: ${token}`);
@@ -60,7 +60,7 @@ export default function () {
   sleep(randomeSeconds(1, 2));
 
   // Get current user's ID
-  console.log('👤 Get current user');
+  console.log('Get current user');
   const userId = getCurrentUser(token);
   if (!userId) return;
   console.log(`User ID: ${userId}`);
@@ -68,7 +68,7 @@ export default function () {
   sleep(randomeSeconds(1, 2));
 
   // TEST 1: Get user's following (default pagination)
-  console.log('📝 Test 1: Get user following (default pagination)');
+  console.log('Test 1: Get user following (default pagination)');
   const followingUrl1 = getUrl(`/users/${userId}/following`);
   const res1 = http.get(followingUrl1, {
     headers: {
@@ -81,11 +81,11 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log(`✅ Retrieved ${res1.json()?.count || 0} following users`);
+  console.log(`Retrieved ${res1.json()?.count || 0} following users`);
   sleep(randomeSeconds(1, 2));
 
   // TEST 2: Get user's following with custom pagination
-  console.log('📝 Test 2: Get user following with pagination');
+  console.log('Test 2: Get user following with pagination');
   const pageOffset = randInt(1, 3);
   const pageSize = randInt(5, 20);
   const followingUrl2 = getUrl(
@@ -103,12 +103,12 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log(`✅ Page ${pageOffset}, size ${pageSize}`);
+  console.log(`Page ${pageOffset}, size ${pageSize}`);
   sleep(randomeSeconds(0.5, 1.5));
   console.log(res2.json());
 
   // TEST 3: Get following for non-existent user (404)
-  console.log('📝 Test 3: Get following for non-existent user');
+  console.log('Test 3: Get following for non-existent user');
   const fakeUserId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
   const followingUrl3 = getUrl(`/users/${fakeUserId}/following`);
 
@@ -123,11 +123,11 @@ export default function () {
     'status 404': (r) => r.status === 404
   });
 
-  console.log('🔍 Non-existent user returns 404');
+  console.log('Non-existent user returns 404');
   sleep(randomeSeconds(1, 2));
 
   // TEST 4: Invalid token (401)
-  console.log('📝 Test 4: Invalid token');
+  console.log('Test 4: Invalid token');
   const res4 = http.get(followingUrl1, {
     headers: {
       Authorization: 'Bearer invalid'
@@ -139,6 +139,6 @@ export default function () {
     'status 401': (r) => r.status === 401
   });
 
-  console.log('🔐 Invalid token rejected');
+  console.log('Invalid token rejected');
   sleep(randomeSeconds(1, 2));
 }

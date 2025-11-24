@@ -66,7 +66,7 @@ export default function () {
     }
   });
 
-  console.log(`✅ Existing email found: ${existingEmail} - User ID returned`);
+  console.log(`Existing email found: ${existingEmail} - User ID returned`);
 
   sleep(randomeSeconds(1, 2));
 
@@ -95,7 +95,7 @@ export default function () {
       }
     });
 
-    console.log(`❌ Random email not in system: ${randomEmail}`);
+    console.log(`Random email not in system: ${randomEmail}`);
   } else if (Math.random() < 0.667) {
     // 20 / (100 - 70) = 0.667
     const randomPhone = randPhone();
@@ -121,7 +121,7 @@ export default function () {
       }
     });
 
-    console.log(`❌ Random phone not in system: ${randomPhone}`);
+    console.log(`Random phone not in system: ${randomPhone}`);
   }
   // Test 4: Check non-existent username (10% of requests)
   else {
@@ -157,7 +157,7 @@ export default function () {
       }
     });
 
-    console.log(`❌ Random username not in system: ${randomUsername}`);
+    console.log(`Random username not in system: ${randomUsername}`);
   }
 
   sleep(randomeSeconds(1, 2));

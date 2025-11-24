@@ -4,7 +4,7 @@ import { check, sleep } from 'k6';
 import {
   randomeSeconds,
   getUrl,
-  options as testOptions,
+  options as testOptions
 } from '../../utils/config.js';
 
 const url = getUrl('/users/by/username');
@@ -18,18 +18,18 @@ export default function () {
   // --- Test 1: Valid usernames ---
   const validUsernames = 'alyaa242,amira999';
   const fullValidUrl = `${url}?usernames=${validUsernames}`;
-  console.log(`🔍 Sending request to: ${fullValidUrl}`);
+  console.log(`Sending request to: ${fullValidUrl}`);
 
   const validRes = http.get(fullValidUrl, {
     headers: { Accept: 'application/json' },
-    responseCallback: validCallback,
+    responseCallback: validCallback
   });
 
   if (validRes.error) {
-    console.error('❌ Request failed:', validRes.error);
+    console.error('Request failed:', validRes.error);
   } else {
-    console.log(`✅ Response status: ${validRes.status}`);
-    console.log('📦 Response body:', validRes.body);
+    console.log(`Response status: ${validRes.status}`);
+    console.log('Response body:', validRes.body);
   }
 
   check(validRes, {
@@ -49,7 +49,7 @@ export default function () {
       } catch {
         return false;
       }
-    },
+    }
   });
 
   const randWait = randomeSeconds(1, 2);
@@ -58,18 +58,18 @@ export default function () {
   // --- Test 2: Invalid usernames ---
   const invalidUsernames = 'user_does_not_exist_123,user_invalid_999';
   const fullInvalidUrl = `${url}?usernames=${invalidUsernames}`;
-  console.log(`🔍 Sending request to: ${fullInvalidUrl}`);
+  console.log(`Sending request to: ${fullInvalidUrl}`);
 
   const invalidRes = http.get(fullInvalidUrl, {
     headers: { Accept: 'application/json' },
-    responseCallback: invalidCallback,
+    responseCallback: invalidCallback
   });
 
   if (invalidRes.error) {
-    console.error('❌ Invalid request failed:', invalidRes.error);
+    console.error('Invalid request failed:', invalidRes.error);
   } else {
-    console.log(`⚠️ Invalid response status: ${invalidRes.status}`);
-    console.log('📦 Invalid response body:', invalidRes.body);
+    console.log(`Invalid response status: ${invalidRes.status}`);
+    console.log('Invalid response body:', invalidRes.body);
   }
 
   check(invalidRes, {
@@ -89,7 +89,7 @@ export default function () {
       } catch {
         return false;
       }
-    },
+    }
   });
 
   sleep(randWait);

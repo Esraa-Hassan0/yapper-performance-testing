@@ -27,8 +27,6 @@ export const options = {
 };
 
 export default function () {
-  // ONLY VU 1 on iteration 0: Login once, then logout to invalidate token
-  console.log('🔐 VU 1: Logging in and logging out to set invalid token...');
 
   const creds = generateCredentials(true);
   const loginRes = http.post(loginUrl, JSON.stringify(creds), {
@@ -53,9 +51,9 @@ export default function () {
   try {
     sharedToken = loginRes.json().data.access_token;
     tokenSet = true;
-    console.log(`✅ Got token: ${sharedToken.substring(0, 15)}...`);
+    console.log(`Got token: ${sharedToken.substring(0, 15)}...`);
   } catch (e) {
-    console.error('❌ Failed to extract token');
+    console.error('Failed to extract token');
     return;
   }
 

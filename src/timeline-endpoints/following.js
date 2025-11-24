@@ -33,7 +33,7 @@ function loginAndGetToken() {
   try {
     return res.json().data.access_token;
   } catch (e) {
-    console.error('❌ Login failed');
+    console.error('Login failed');
     return null;
   }
 }
@@ -72,7 +72,6 @@ export default function () {
     'status 200': (r) => r.status === 200
   });
 
-  console.log(`📦 Test 2 Response (limit=${limit}):`, res2.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 3: Get timeline with cursor pagination (if available from previous response)
@@ -95,7 +94,6 @@ export default function () {
       'status 200': (r) => r.status === 200
     });
 
-    console.log('📦 Test 3 Response (cursor pagination):', res3.body);
     sleep(randomeSeconds(0.5, 1.5));
   }
 
@@ -111,7 +109,7 @@ export default function () {
     'status 400': (r) => r.status === 400
   });
 
-  console.log('📦 Test 4 Response (invalid limit):', res4.body);
+  console.log('Test 4 Response (invalid limit):', res4.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 5: Invalid token -> expect 401
@@ -126,6 +124,5 @@ export default function () {
     'status 401': (r) => r.status === 401
   });
 
-  console.log('📦 Test 5 Response (invalid token):', res5.body);
   sleep(randomeSeconds(0.5, 1.5));
 }

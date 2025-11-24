@@ -17,7 +17,7 @@ export const options = {
     http_req_failed: ['rate<0.05'],
     http_req_duration: ['p(95)<1500'],
     checks: ['rate>0.95']
-  },
+  }
 };
 
 function loginAndGetToken() {
@@ -33,7 +33,7 @@ function loginAndGetToken() {
   try {
     return res.json().data.access_token;
   } catch (e) {
-    console.error('❌ Login failed');
+    console.error('Login failed');
     return null;
   }
 }
@@ -57,7 +57,7 @@ export default function () {
     'default timeline: status 200': (r) => r.status === 200
   });
 
-  console.log('📦 Test 1 Response:', res1.body);
+  console.log('Test 1 Response:', res1.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 2: Get timeline with custom limit
@@ -73,7 +73,7 @@ export default function () {
     'custom limit: status 200': (r) => r.status === 200
   });
 
-  console.log(`📦 Test 2 Response (limit=${limit}):`, res2.body);
+  console.log(`Test 2 Response (limit=${limit}):`, res2.body);
   sleep(randomeSeconds(2, 3));
 
   // TEST 3: Get timeline with cursor pagination (if available from previous response)
@@ -96,7 +96,7 @@ export default function () {
       'cursor pagination: status 200': (r) => r.status === 200
     });
 
-    console.log('📦 Test 3 Response (cursor pagination):', res3.body);
+    console.log('Test 3 Response (cursor pagination):', res3.body);
     sleep(randomeSeconds(2, 3));
   }
 
@@ -112,7 +112,7 @@ export default function () {
     'invalid limit: status 400': (r) => r.status === 400
   });
 
-  console.log('📦 Test 4 Response (invalid limit):', res4.body);
+  console.log('Test 4 Response (invalid limit):', res4.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 5: Invalid token -> expect 401
@@ -127,6 +127,6 @@ export default function () {
     'invalid token: status 401': (r) => r.status === 401
   });
 
-  console.log('📦 Test 5 Response (invalid token):', res5.body);
+  console.log('Test 5 Response (invalid token):', res5.body);
   sleep(randomeSeconds(0.5, 1.5));
 }

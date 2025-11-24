@@ -1,6 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { options as testOptions} from '../utils/config.js';
+import { options as testOptions } from '../utils/config.js';
 import {
   randomeSeconds,
   generateCredentials,
@@ -51,7 +51,7 @@ export default function () {
   try {
     accessToken = loginRes.json().data.access_token;
   } catch (e) {
-    console.error('❌ Failed to extract token from login');
+    console.error('Failed to extract token from login');
     return;
   }
 
@@ -91,21 +91,19 @@ export default function () {
   try {
     newAccessToken = refreshRes.json().data.access_token;
   } catch (e) {
-    console.error('❌ Failed to extract new token from refresh');
+    console.error('Failed to extract new token from refresh');
   }
 
   // Verify new token is different from old token (to ensure fresh token generated)
   if (newAccessToken && newAccessToken !== accessToken) {
-    console.log(
-      `✅ New token generated: ${newAccessToken.substring(0, 15)}...`
-    );
+    console.log(`New token generated: ${newAccessToken.substring(0, 15)}...`);
   }
 
   sleep(randomeSeconds(1, 2));
 
   // Step 3: Test invalid/expired token scenario
   if (Math.random() < 0.3) {
-    console.log('📝 Testing invalid token scenario...');
+    console.log('Testing invalid token scenario...');
 
     // Clear cookies to simulate no refresh token
     http.cookieJar().set(BASE_URL, 'refresh_token', '');

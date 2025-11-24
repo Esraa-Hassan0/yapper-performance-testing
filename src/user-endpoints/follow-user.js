@@ -32,7 +32,7 @@ function loginAndGetToken() {
   try {
     return res.json().data.access_token;
   } catch (e) {
-    console.error('❌ Login failed');
+    console.error('Login failed');
     return null;
   }
 }
@@ -46,7 +46,7 @@ function getCurrentUserId(token) {
   try {
     return res.json().data.user_id;
   } catch (e) {
-    console.error('❌ Failed to get current user');
+    console.error('Failed to get current user');
     return null;
   }
 }

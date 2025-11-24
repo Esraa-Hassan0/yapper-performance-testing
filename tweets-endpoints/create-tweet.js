@@ -14,13 +14,13 @@ const loginUrl = getUrl('/auth/login');
 const createTweetUrl = getUrl('/tweets');
 
 export const options = {
-    ...testOptions,
-    thresholds: {
-        http_req_failed: ['rate<0.05'],
-        http_req_duration: ['p(95)<1500'],
-        checks: ['rate>0.95']
-    }
-}
+  ...testOptions,
+  thresholds: {
+    http_req_failed: ['rate<0.05'],
+    http_req_duration: ['p(95)<1500'],
+    checks: ['rate>0.95']
+  }
+};
 
 function loginAndGetToken() {
   const creds = generateCredentials(true);
@@ -35,7 +35,7 @@ function loginAndGetToken() {
   try {
     return res.json().data.access_token;
   } catch (e) {
-    console.error('❌ Login failed');
+    console.error('Login failed');
     return null;
   }
 }
@@ -71,7 +71,7 @@ export default function () {
     'status 201': (r) => r.status === 201
   });
 
-  console.log('📦 Test 1 Response (text only):', res1.body);
+  console.log('Test 1 Response (text only):', res1.body);
   sleep(randomeSeconds(1, 2));
 
   // TEST 2: Create tweet with image
@@ -93,7 +93,7 @@ export default function () {
     'status 201': (r) => r.status === 201
   });
 
-  console.log('📦 Test 2 Response (with image):', res2.body);
+  console.log('Test 2 Response (with image):', res2.body);
   sleep(randomeSeconds(1, 2));
 
   // TEST 3: Invalid token -> expect 401
@@ -115,7 +115,7 @@ export default function () {
     'status 401': (r) => r.status === 401
   });
 
-  console.log('📦 Test 3 Response (invalid token):', res3.body);
+  console.log('Test 3 Response (invalid token):', res3.body);
   sleep(randomeSeconds(0.5, 1.5));
 
   // TEST 4: Empty content -> expect 400
@@ -136,6 +136,6 @@ export default function () {
     'status 400 or 201': (r) => r.status === 400 || r.status === 201
   });
 
-  console.log('📦 Test 4 Response (empty content):', res4.status, res4.body);
+  console.log('Test 4 Response (empty content):', res4.status, res4.body);
   sleep(randomeSeconds(0.5, 1.5));
 }

@@ -56,7 +56,7 @@ function loginAndGetToken() {
     const data = loginRes.json().data;
     return data.access_token;
   } catch (e) {
-    console.error('❌ Failed to extract token from login');
+    console.error('Failed to extract token from login');
     return null;
   }
 }
@@ -85,14 +85,11 @@ function updateUsername(token, username, expectedCallback) {
 
 export default function () {
   // Login to get access token
-  console.log('🔐 Login');
   const accessToken = loginAndGetToken();
   if (!accessToken) return;
 
   sleep(randomeSeconds(0.5, 1));
 
-  // SCENARIO 1: Update with new valid username
-  console.log('📝 Test 1: Update to new valid username');
   const newUsername = generateValidUsername();
   const validRes = updateUsername(accessToken, newUsername, successCallback);
   check(validRes, {
@@ -105,11 +102,8 @@ export default function () {
       }
     }
   });
-  console.log(`✅ Username updated to: ${newUsername}`);
   sleep(randomeSeconds(1, 2));
 
-  // SCENARIO 2: Invalid token
-  console.log('📝 Test 2: Invalid token');
   const invalidUsername = generateValidUsername();
   const payload = JSON.stringify({ username: invalidUsername });
   const tokenRes = http.post(updateUsernameUrl, payload, {
@@ -131,11 +125,9 @@ export default function () {
       }
     }
   });
-  console.log('🔐 Invalid token rejected');
+  console.log('Invalid token rejected');
   sleep(randomeSeconds(1, 2));
 
-  // SCENARIO 3: Invalid format - too short
-  console.log('📝 Test 3: Invalid format - too short username');
   const formatRes = updateUsername(accessToken, 'ab', badRequestCallback);
   check(formatRes, {
     'invalid: status 400 or 422': (r) => r.status === 400 || r.status === 422,
@@ -147,6 +139,5 @@ export default function () {
       }
     }
   });
-  console.log('❌ Invalid format rejected');
   sleep(randomeSeconds(1, 2));
 }

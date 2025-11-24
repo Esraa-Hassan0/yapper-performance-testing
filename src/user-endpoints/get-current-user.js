@@ -4,7 +4,7 @@ import {
   randomeSeconds,
   generateCredentials,
   getUrl,
-  options as testOptions,
+  options as testOptions
 } from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
@@ -19,21 +19,21 @@ export const options = {
   thresholds: {
     http_req_failed: ['rate<0.01'], // <1% requests should fail
     http_req_duration: ['p(95)<500'], // 95% of requests <500ms
-    checks: ['rate>0.95'], // 95% of checks should pass
-  },
+    checks: ['rate>0.95'] // 95% of checks should pass
+  }
 };
 
 export default function () {
   // --- Step 1: Login ---
   const loginPayload = generateCredentials(true); // Uses EMAIL/PASSWORD from env
-  console.log(`🔐 Logging in as: ${loginPayload.identifier}`);
+  console.log(`Logging in as: ${loginPayload.identifier}`);
 
   const loginRes = http.post(loginUrl, JSON.stringify(loginPayload), {
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json',
+      Accept: 'application/json'
     },
-    responseCallback: loginCallback,
+    responseCallback: loginCallback
   });
 
   // Validate login
@@ -49,12 +49,12 @@ export default function () {
       } catch {
         return false;
       }
-    },
+    }
   });
 
   if (!loginOk) {
-    console.error(`❌ Login failed: ${loginRes.status}`);
-    console.log('📦 Login response:', loginRes.body);
+    console.error(`Login failed: ${loginRes.status}`);
+    console.log('Login response:', loginRes.body);
     return;
   }
 
@@ -64,11 +64,11 @@ export default function () {
     const body = loginRes.json();
     accessToken = body?.data?.access_token || '';
   } catch {
-    console.error('🚫 Failed to parse token from login response.');
+    console.error('Failed to parse token from login response.');
   }
 
   if (!accessToken) {
-    console.error('🚫 No token received — cannot test /users/me endpoint.');
+    console.error('No token received — cannot test /users/me endpoint.');
     return;
   }
 
@@ -76,14 +76,14 @@ export default function () {
   sleep(randWait);
 
   // --- Step 2: Fetch current user (/users/me) ---
-  console.log(`🔍 Sending authorized request to: ${meUrl}`);
+  console.log(`Sending authorized request to: ${meUrl}`);
 
   const meRes = http.get(meUrl, {
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${accessToken}`
     },
-    responseCallback: meCallback,
+    responseCallback: meCallback
   });
 
   // Validate /users/me response
@@ -123,10 +123,10 @@ export default function () {
       } catch {
         return false;
       }
-    },
+    }
   });
 
-  console.log(`📦 /users/me response: ${meRes.status} - ${meRes.body}`);
+  console.log(`/users/me response: ${meRes.status} - ${meRes.body}`);
 
   sleep(randWait);
 }
