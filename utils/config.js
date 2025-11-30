@@ -2,7 +2,7 @@ import {
   email as randEmail,
   seed as randSeed,
   string as randString,
-  int as randInt
+  int as randInt,
 } from './random.js';
 
 export const BASE_URL = __ENV.BASE_URL;
@@ -46,16 +46,17 @@ export function getEmailOrRandom(prefix = 'user') {
  */
 export function generateCredentials(realUser = false) {
   if (realUser) {
+    console.log(__ENV.EMAIL, __ENV.PASSWORD);
     return {
       identifier: email,
+      type: 'email',
       password: password,
-      type: 'email'
     };
   }
   return {
     identifier: randEmail('invalid_user'),
     password: randString(30),
-    type: 'email'
+    type: 'email',
   };
 }
 
@@ -101,19 +102,23 @@ export function generateStrongPassword(length = 12) {
 
 export const options = {
   stages: [
-    { duration: '1m', target: 50 }, // ramp-up from 0 to 50 users
-    { duration: '2m', target: 50 }, // hold at 50 users
-    { duration: '1m', target: 100 }, // ramp-up to 100 users
-    { duration: '2m', target: 100 }, // hold at 100 users (stress peak)
-    { duration: '1m', target: 0 } // ramp-down
+    { duration: '1m', target: 100 }, // ramp-up from 0 to 100 users
+    { duration: '1m', target: 100 }, // hold at 100 users
+    { duration: '1m', target: 200 }, // ramp-up to 200 users
+    { duration: '1m', target: 200 }, // hold at 200 users (stress peak)
+    { duration: '1m', target: 400 }, // ramp-up to 400 users
+    { duration: '1m', target: 400 }, // hold at 400 users (stress peak)
+    { duration: '1m', target: 800 }, // ramp-up to 800 users
+    { duration: '1m', target: 800 }, // hold at 800 users (stress peak)
+    { duration: '1m', target: 0 }, // ramp-down
   ],
   thresholds: {
     http_req_failed: ['rate<0.01'], // <1% requests should fail
-    http_req_duration: ['p(95)<800'] // 95% of requests <600ms
+    http_req_duration: ['p(95)<800'], // 95% of requests <600ms
   },
   cloud: {
-    projectID: 5399990
-  }
+    projectID: 5399990,
+  },
 };
 
 export { randEmail, randString };
