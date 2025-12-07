@@ -17,8 +17,10 @@ export const options = testOptions;
 // Custom metrics to count status codes separately
 const status200 = new Counter('status_200');
 const status201 = new Counter('status_201');
+const status204 = new Counter('status_204');
 const status400 = new Counter('status_400');
 const status401 = new Counter('status_401');
+const status403 = new Counter('status_403');
 const status404 = new Counter('status_404');
 const status500 = new Counter('status_500');
 
@@ -33,11 +35,17 @@ function logStatus(res, label, testName) {
     case 201:
       status201.add(1);
       break;
+    case 204:
+      status204.add(1);
+      break;
     case 400:
       status400.add(1);
       break;
     case 401:
       status401.add(1);
+      break;
+    case 403:
+      status403.add(1);
       break;
     case 404:
       status404.add(1);
@@ -87,11 +95,11 @@ export default function () {
 
   // TEST 1: Create a tweet
   const tweetContent = generateTweetContent();
-  const payload = JSON.stringify({
+  const createPayload = JSON.stringify({
     content: tweetContent,
   });
 
-  const createRes = http.post(createTweetUrl, payload, {
+  const createRes = http.post(createTweetUrl, createPayload, {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -118,34 +126,38 @@ export default function () {
 
   sleep(randomeSeconds(1, 2));
 
-  // TEST 2: Get the tweet by ID
-  const getTweetUrl = getUrl(`/tweets/${tweetId}`);
-  const getRes = http.get(getTweetUrl, {
+  // TEST 2: Repost the tweet
+  const repostUrl = getUrl(`/tweets/${tweetId}/repost`);
+  const repostRes = http.post(repostUrl, null, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    responseCallback: http.expectedStatuses(200),
+    responseCallback: http.expectedStatuses(201),
   });
 
-  check(getRes, {
-    'get: status 200': (r) => r.status === 200,
-    'get: content matches': (r) => {
-      try {
-        return r.json().data.content === tweetContent;
-      } catch {
-        return false;
-      }
-    },
-    'get: tweet_id matches': (r) => {
-      try {
-        return r.json().data.tweet_id === tweetId;
-      } catch {
-        return false;
-      }
-    },
+  check(repostRes, {
+    'repost: status 201': (r) => r.status === 201,
   });
 
-  logStatus(getRes, 'Test 2 (get tweet by ID)', 'test_2_get');
-  console.log('Retrieved tweet:', getRes.body);
+  logStatus(repostRes, 'Test 2 (repost tweet)', 'test_2_repost');
+  console.log('Reposted tweet successfully');
+  console.log('Repost response:', repostRes.body);
+  sleep(randomeSeconds(1, 2));
+
+  // TEST 3: Unrepost the tweet (delete repost)
+  const unrepostRes = http.del(repostUrl, null, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    responseCallback: http.expectedStatuses(204),
+  });
+
+  check(unrepostRes, {
+    'unrepost: status 204': (r) => r.status === 204,
+  });
+
+  logStatus(unrepostRes, 'Test 3 (unrepost tweet)', 'test_3_unrepost');
+  console.log('Unreposted tweet successfully');
+  console.log('Unrepost response:', unrepostRes.body);
   sleep(randomeSeconds(1, 2));
 }

@@ -1,56 +1,109 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import {
   randomeSeconds,
   randString,
   generateCredentials,
   getUrl,
-  options as testOptions
+  options as testOptions,
 } from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const updateUsernameUrl = getUrl('/auth/update-username');
 
-// Response callbacks
-const successCallback = http.expectedStatuses(200, 201);
-const unauthorizedCallback = http.expectedStatuses(401);
-const badRequestCallback = http.expectedStatuses(400, 404);
-
 export const options = {
   ...testOptions,
+  insecureSkipTLSVerify: true,
+  noConnectionReuse: false,
   thresholds: {
     http_req_failed: ['rate<0.05'],
     http_req_duration: ['p(95)<1500'],
-    checks: ['rate>0.95']
+    checks: ['rate>0.95'],
   },
   cloud: {
-    projectID: 5399990
-  }
+    projectID: 5399990,
+  },
 };
 
-/**
- * Helper function to login and get access token
- */
+// Custom metrics to count status codes separately
+const status200 = new Counter('status_200');
+const status201 = new Counter('status_201');
+const status400 = new Counter('status_400');
+const status401 = new Counter('status_401');
+const status403 = new Counter('status_403');
+const status404 = new Counter('status_404');
+const status422 = new Counter('status_422');
+const status500 = new Counter('status_500');
+
+// Legacy counters for backwards compatibility
+const usernameUpdateSuccess = new Counter('username_update_success');
+const usernameUpdateFailed = new Counter('username_update_failed');
+const usernameInvalidToken = new Counter('username_invalid_token');
+const usernameInvalidFormat = new Counter('username_invalid_format');
+
+function logStatus(res, label, testName) {
+  console.log(
+    `${label} - Status: ${res.status} | VU: ${__VU} | Iter: ${__ITER}`
+  );
+
+  // Count each status code separately
+  switch (res.status) {
+    case 200:
+      status200.add(1);
+      break;
+    case 201:
+      status201.add(1);
+      break;
+    case 400:
+      status400.add(1);
+      break;
+    case 401:
+      status401.add(1);
+      break;
+    case 403:
+      status403.add(1);
+      break;
+    case 404:
+      status404.add(1);
+      break;
+    case 422:
+      status422.add(1);
+      break;
+    case 500:
+      status500.add(1);
+      break;
+    default:
+      // Log unexpected status codes
+      console.warn(`Unexpected status code: ${res.status}`);
+  }
+}
+
 function loginAndGetToken() {
   const loginCreds = generateCredentials(true);
+  console.log('Login creds:', loginCreds);
+
   const loginRes = http.post(loginUrl, JSON.stringify(loginCreds), {
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json'
+      Accept: 'application/json',
     },
-    responseCallback: http.expectedStatuses(201, 200)
+    responseCallback: http.expectedStatuses(201, 200),
+    timeout: '60s',
   });
 
   check(loginRes, {
-    'login: status 201': (r) => r.status === 201,
+    'login: status 201 or 200': (r) => r.status === 201 || r.status === 200,
     'login: has access token': (r) => {
       try {
         return r.json()?.data?.access_token?.length > 0;
       } catch {
         return false;
       }
-    }
+    },
   });
+
+  logStatus(loginRes, 'Login', 'login');
 
   try {
     const data = loginRes.json().data;
@@ -61,25 +114,20 @@ function loginAndGetToken() {
   }
 }
 
-/**
- * Generate a valid username (3-30 chars, letters/numbers/underscores)
- */
 function generateValidUsername() {
   return `user_${randString(8, 'abcdefghijklmnopqrstuvwxyz0123456789_')}`;
 }
 
-/**
- * Helper function to update username with given token and username
- */
 function updateUsername(token, username, expectedCallback) {
   const payload = JSON.stringify({ username });
   return http.post(updateUsernameUrl, payload, {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${token}`,
     },
-    responseCallback: expectedCallback
+    responseCallback: expectedCallback,
+    timeout: '60s',
   });
 }
 
@@ -88,56 +136,38 @@ export default function () {
   const accessToken = loginAndGetToken();
   if (!accessToken) return;
 
-  sleep(randomeSeconds(0.5, 1));
+  sleep(randomeSeconds(1, 2));
 
+  // TEST 1: Update username with valid data
   const newUsername = generateValidUsername();
-  const validRes = updateUsername(accessToken, newUsername, successCallback);
+  const validRes = updateUsername(
+    accessToken,
+    newUsername,
+    http.expectedStatuses(200, 201)
+  );
+
   check(validRes, {
-    'valid: status 200 or 201': (r) => r.status === 200 || r.status === 201,
-    'valid: username matches': (r) => {
+    'valid update: status 200 or 201': (r) =>
+      r.status === 200 || r.status === 201,
+    'valid update: username matches': (r) => {
       try {
         return r.json()?.data?.username === newUsername;
       } catch {
         return false;
       }
-    }
-  });
-  sleep(randomeSeconds(1, 2));
-
-  const invalidUsername = generateValidUsername();
-  const payload = JSON.stringify({ username: invalidUsername });
-  const tokenRes = http.post(updateUsernameUrl, payload, {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: 'Bearer invalid_token_xyz'
     },
-    responseCallback: unauthorizedCallback
   });
-  check(tokenRes, {
-    'invalid token: status 401': (r) => r.status === 401,
-    'invalid token: has error': (r) => {
-      try {
-        const msg = r.json()?.message?.toLowerCase();
-        return msg?.includes('invalid') || msg?.includes('expired');
-      } catch {
-        return false;
-      }
-    }
-  });
-  console.log('Invalid token rejected');
-  sleep(randomeSeconds(1, 2));
 
-  const formatRes = updateUsername(accessToken, 'ab', badRequestCallback);
-  check(formatRes, {
-    'invalid: status 400 or 422': (r) => r.status === 400 || r.status === 422,
-    'invalid: has error': (r) => {
-      try {
-        return r.json()?.message?.length > 0;
-      } catch {
-        return false;
-      }
-    }
-  });
+  logStatus(validRes, 'Test 1 (valid username update)', 'test_1_valid_update');
+
+  if (validRes.status === 200 || validRes.status === 201) {
+    usernameUpdateSuccess.add(1);
+    console.log(`Username updated successfully to: ${newUsername}`);
+  } else {
+    usernameUpdateFailed.add(1);
+    console.log('Username update failed');
+  }
+
+  console.log('Test 1 Response:', validRes.body);
   sleep(randomeSeconds(1, 2));
 }

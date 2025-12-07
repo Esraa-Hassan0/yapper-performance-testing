@@ -1,10 +1,11 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
-  options as testOptions
+  options as testOptions,
 } from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
@@ -17,24 +18,63 @@ const meCallback = http.expectedStatuses(200, 401, 404);
 export const options = {
   ...testOptions,
   thresholds: {
-    http_req_failed: ['rate<0.01'], // <1% requests should fail
-    http_req_duration: ['p(95)<500'], // 95% of requests <500ms
-    checks: ['rate>0.95'] // 95% of checks should pass
-  }
+    http_req_failed: ['rate<0.01'],
+    http_req_duration: ['p(95)<500'],
+    checks: ['rate>0.95'],
+  },
 };
 
+// Custom metrics to count status codes separately
+const status200 = new Counter('status_200');
+const status201 = new Counter('status_201');
+const status400 = new Counter('status_400');
+const status401 = new Counter('status_401');
+const status404 = new Counter('status_404');
+const status500 = new Counter('status_500');
+
+function logStatus(res, label, testName) {
+  console.log(`${label} - Status: ${res.status}`);
+
+  // Count each status code separately
+  switch (res.status) {
+    case 200:
+      status200.add(1);
+      break;
+    case 201:
+      status201.add(1);
+      break;
+    case 400:
+      status400.add(1);
+      break;
+    case 401:
+      status401.add(1);
+      break;
+    case 404:
+      status404.add(1);
+      break;
+    case 500:
+      status500.add(1);
+      break;
+    default:
+      // Log unexpected status codes
+      console.warn(`Unexpected status code: ${res.status}`);
+  }
+}
+
 export default function () {
-  // --- Step 1: Login ---
-  const loginPayload = generateCredentials(true); // Uses EMAIL/PASSWORD from env
+  // Step 1: Login
+  const loginPayload = generateCredentials(true);
   console.log(`Logging in as: ${loginPayload.identifier}`);
 
   const loginRes = http.post(loginUrl, JSON.stringify(loginPayload), {
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json'
+      Accept: 'application/json',
     },
-    responseCallback: loginCallback
+    responseCallback: loginCallback,
   });
+
+  logStatus(loginRes, 'Step 1 (login)', 'step_1_login');
 
   // Validate login
   const loginOk = check(loginRes, {
@@ -49,7 +89,7 @@ export default function () {
       } catch {
         return false;
       }
-    }
+    },
   });
 
   if (!loginOk) {
@@ -75,16 +115,18 @@ export default function () {
   const randWait = randomeSeconds(1, 2);
   sleep(randWait);
 
-  // --- Step 2: Fetch current user (/users/me) ---
+  // Step 2: Fetch current user (/users/me)
   console.log(`Sending authorized request to: ${meUrl}`);
 
   const meRes = http.get(meUrl, {
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`
+      Authorization: `Bearer ${accessToken}`,
     },
-    responseCallback: meCallback
+    responseCallback: meCallback,
   });
+
+  logStatus(meRes, 'Step 2 (get current user)', 'step_2_get_me');
 
   // Validate /users/me response
   check(meRes, {
@@ -123,10 +165,10 @@ export default function () {
       } catch {
         return false;
       }
-    }
+    },
   });
 
-  console.log(`/users/me response: ${meRes.status} - ${meRes.body}`);
+  console.log(`/users/me response body: ${meRes.body}`);
 
   sleep(randWait);
 }

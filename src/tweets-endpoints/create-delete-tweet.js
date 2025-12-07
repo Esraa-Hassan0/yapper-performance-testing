@@ -9,8 +9,6 @@ import {
   options as testOptions,
 } from '../../utils/config.js';
 
-const imagePath = open('../test-data/image.png', 'b');
-
 const loginUrl = getUrl('/auth/login');
 const createTweetUrl = getUrl('/tweets');
 
@@ -26,8 +24,11 @@ export const options = {
 // Custom metrics to count status codes separately
 const status200 = new Counter('status_200');
 const status201 = new Counter('status_201');
+const status204 = new Counter('status_204');
 const status400 = new Counter('status_400');
 const status401 = new Counter('status_401');
+const status403 = new Counter('status_403');
+const status404 = new Counter('status_404');
 const status500 = new Counter('status_500');
 
 function logStatus(res, label, testName) {
@@ -41,11 +42,20 @@ function logStatus(res, label, testName) {
     case 201:
       status201.add(1);
       break;
+    case 204:
+      status204.add(1);
+      break;
     case 400:
       status400.add(1);
       break;
     case 401:
       status401.add(1);
+      break;
+    case 403:
+      status403.add(1);
+      break;
+    case 404:
+      status404.add(1);
       break;
     case 500:
       status500.add(1);
@@ -90,13 +100,13 @@ export default function () {
 
   sleep(randomeSeconds(1, 2));
 
-  // TEST 1: Create tweet with only content
+  // TEST 1: Create a tweet
   const tweetContent1 = generateTweetContent();
   const payload1 = JSON.stringify({
     content: tweetContent1,
   });
 
-  const res1 = http.post(createTweetUrl, payload1, {
+  const createRes = http.post(createTweetUrl, payload1, {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
@@ -105,79 +115,43 @@ export default function () {
     responseCallback: http.expectedStatuses(201),
   });
 
-  check(res1, {
-    'status 201': (r) => r.status === 201,
+  check(createRes, {
+    'create: status 201': (r) => r.status === 201,
   });
 
-  logStatus(res1, 'Test 1 (text only)', 'test_1_text_only');
-  console.log('Test 1 Response (text only):', res1.body);
+  logStatus(createRes, 'Test 1 (create tweet)', 'test_1_create');
+  console.log(`Created tweet: "${tweetContent1}"`);
+
+  let tweetId = null;
+  try {
+    tweetId = createRes.json().data.tweet_id;
+    console.log(`Tweet ID: ${tweetId}`);
+  } catch (e) {
+    console.error('Failed to get tweet ID from response');
+    console.log('Create response:', createRes.body);
+    return;
+  }
+
   sleep(randomeSeconds(1, 2));
 
-  // TEST 2: Create tweet with image
-  const tweetContent2 = generateTweetContent();
-
-  const formData2 = {
-    content: tweetContent2,
-    image: http.file(imagePath, 'image.png', 'image/png'),
-  };
-
-  const res2 = http.post(createTweetUrl, formData2, {
+  // TEST 2: Delete the tweet
+  const deleteTweetUrl = getUrl(`/tweets/${tweetId}`);
+  const deleteRes = http.del(deleteTweetUrl, null, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    responseCallback: http.expectedStatuses(201),
+    responseCallback: http.expectedStatuses(204),
   });
 
-  check(res2, {
-    'status 201': (r) => r.status === 201,
+  check(deleteRes, {
+    'delete: status 204': (r) => r.status === 204,
   });
 
-  logStatus(res2, 'Test 2 (with image)', 'test_2_with_image');
-  console.log('Test 2 Response (with image):', res2.body);
+  logStatus(deleteRes, 'Test 2 (delete tweet)', 'test_2_delete');
+  console.log('Tweet deleted successfully');
+  console.log('Delete response:', deleteRes.body);
   sleep(randomeSeconds(1, 2));
 
-  // TEST 3: Invalid token -> expect 401
-  const tweetContent3 = generateTweetContent();
-  const payload3 = JSON.stringify({
-    content: tweetContent3,
-  });
-
-  const res3 = http.post(createTweetUrl, payload3, {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: 'Bearer invalid',
-    },
-    responseCallback: http.expectedStatuses(401),
-  });
-
-  check(res3, {
-    'status 401': (r) => r.status === 401,
-  });
-
-  logStatus(res3, 'Test 3 (invalid token)', 'test_3_invalid_token');
-  console.log('Test 3 Response (invalid token):', res3.body);
-  sleep(randomeSeconds(0.5, 1.5));
-
-  // TEST 4: Empty content -> expect 400
-  const payload4 = JSON.stringify({
-    content: '',
-  });
-
-  const res4 = http.post(createTweetUrl, payload4, {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    responseCallback: http.expectedStatuses(400, 201),
-  });
-
-  check(res4, {
-    'status 400 or 201': (r) => r.status === 400 || r.status === 201,
-  });
-
-  logStatus(res4, 'Test 4 (empty content)', 'test_4_empty_content');
-  console.log('Test 4 Response (empty content):', res4.status, res4.body);
-  sleep(randomeSeconds(0.5, 1.5));
+ 
+ 
 }

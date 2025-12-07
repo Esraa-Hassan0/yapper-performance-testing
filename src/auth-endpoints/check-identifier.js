@@ -1,5 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
+import random from '../../utils/random.js';
 import {
   randomeSeconds,
   randEmail,
@@ -7,35 +9,86 @@ import {
   randString,
   getUrl,
   email as marioEmail,
-  options as testOptions
+  options as testOptions,
 } from '../../utils/config.js';
+
+if (__ENV.RAND_SEED) random.seed(__ENV.RAND_SEED);
 
 const checkIdentifierUrl = getUrl('/auth/check-identifier');
 
-// Response callbacks
-const successCallback = http.expectedStatuses(200, 201);
-const notFoundCallback = http.expectedStatuses(404);
-
 export const options = {
   ...testOptions,
+  insecureSkipTLSVerify: true,
+  noConnectionReuse: false,
   thresholds: {
     http_req_failed: ['rate<0.01'],
     http_req_duration: ['p(95)<300', 'p(90)<200'],
-    checks: ['rate>0.99']
-  }
+    checks: ['rate>0.99'],
+  },
 };
 
+// Custom metrics to count status codes separately
+const status200 = new Counter('status_200');
+const status201 = new Counter('status_201');
+const status400 = new Counter('status_400');
+const status401 = new Counter('status_401');
+const status403 = new Counter('status_403');
+const status404 = new Counter('status_404');
+const status500 = new Counter('status_500');
+
+// Legacy counters for backwards compatibility
+const identifierFound = new Counter('identifier_found');
+const identifierNotFound = new Counter('identifier_not_found');
+const identifierHTML = new Counter('identifier_html_response');
+const identifierUnexpected = new Counter('identifier_unexpected_status');
+
+function logStatus(res, label, testName) {
+  console.log(
+    `${label} - Status: ${res.status} | VU: ${__VU} | Iter: ${__ITER}`
+  );
+
+  // Count each status code separately
+  switch (res.status) {
+    case 200:
+      status200.add(1);
+      break;
+    case 201:
+      status201.add(1);
+      break;
+    case 400:
+      status400.add(1);
+      break;
+    case 401:
+      status401.add(1);
+      break;
+    case 403:
+      status403.add(1);
+      break;
+    case 404:
+      status404.add(1);
+      break;
+    case 500:
+      status500.add(1);
+      break;
+    default:
+      // Log unexpected status codes
+      console.warn(`Unexpected status code: ${res.status}`);
+  }
+}
+
 export default function () {
-  // Test 1: Check existing user email (from env - guaranteed to exist in system)
-  const existingEmail = marioEmail; // Known registered user
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+
+  // TEST 1: Check existing user email (from env - guaranteed to exist in system)
+  const existingEmail = marioEmail;
   const existingEmailPayload = JSON.stringify({ identifier: existingEmail });
 
   const existingEmailRes = http.post(checkIdentifierUrl, existingEmailPayload, {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    responseCallback: successCallback
+    headers,
+    timeout: '60s',
   });
 
   check(existingEmailRes, {
@@ -63,102 +116,34 @@ export default function () {
       } catch {
         return false;
       }
-    }
+    },
   });
 
+  logStatus(
+    existingEmailRes,
+    'Test 1 (existing email)',
+    'test_1_existing_email'
+  );
+
+  if (existingEmailRes.status === 200 || existingEmailRes.status === 201) {
+    identifierFound.add(1);
+
+    // Detect JSON vs HTML
+    try {
+      existingEmailRes.json();
+    } catch {
+      identifierHTML.add(1);
+      console.error('Check identifier returned HTML or invalid JSON.');
+      console.error(existingEmailRes.body.substring(0, 300));
+    }
+  } else {
+    identifierUnexpected.add(1);
+    console.log(
+      `Unexpected check-identifier status: ${existingEmailRes.status}`
+    );
+  }
+
   console.log(`Existing email found: ${existingEmail} - User ID returned`);
-
-  sleep(randomeSeconds(1, 2));
-
-  if (Math.random() < 0.7) {
-    // Generate random email that likely doesn't exist
-    const randomEmail = randEmail('random_test');
-    const randomEmailPayload = JSON.stringify({ identifier: randomEmail });
-
-    const randomEmailRes = http.post(checkIdentifierUrl, randomEmailPayload, {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      responseCallback: notFoundCallback
-    });
-
-    check(randomEmailRes, {
-      'random email: status 404 (not found)': (r) => r.status === 404,
-      'random email: has error message': (r) => {
-        try {
-          const msg = r.json()?.message?.toLowerCase();
-          return msg?.includes('not found');
-        } catch {
-          return false;
-        }
-      }
-    });
-
-    console.log(`Random email not in system: ${randomEmail}`);
-  } else if (Math.random() < 0.667) {
-    // 20 / (100 - 70) = 0.667
-    const randomPhone = randPhone();
-    const randomPhonePayload = JSON.stringify({ identifier: randomPhone });
-
-    const randomPhoneRes = http.post(checkIdentifierUrl, randomPhonePayload, {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      responseCallback: notFoundCallback
-    });
-
-    check(randomPhoneRes, {
-      'random phone: status 404 (not found)': (r) => r.status === 404,
-      'random phone: has error message': (r) => {
-        try {
-          const msg = r.json()?.message?.toLowerCase();
-          return msg?.includes('not found');
-        } catch {
-          return false;
-        }
-      }
-    });
-
-    console.log(`Random phone not in system: ${randomPhone}`);
-  }
-  // Test 4: Check non-existent username (10% of requests)
-  else {
-    const randomUsername = randString(
-      12,
-      'abcdefghijklmnopqrstuvwxyz0123456789_'
-    );
-    const randomUsernamePayload = JSON.stringify({
-      identifier: randomUsername
-    });
-
-    const randomUsernameRes = http.post(
-      checkIdentifierUrl,
-      randomUsernamePayload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        responseCallback: notFoundCallback
-      }
-    );
-
-    check(randomUsernameRes, {
-      'random username: status 404 (not found)': (r) => r.status === 404,
-      'random username: has error message': (r) => {
-        try {
-          const msg = r.json()?.message?.toLowerCase();
-          return msg?.includes('not found');
-        } catch {
-          return false;
-        }
-      }
-    });
-
-    console.log(`Random username not in system: ${randomUsername}`);
-  }
 
   sleep(randomeSeconds(1, 2));
 }

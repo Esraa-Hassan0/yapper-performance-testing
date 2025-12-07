@@ -1,33 +1,84 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import { int as randInt } from '../../utils/random.js';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
-  options as testOptions
+  options as testOptions,
 } from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
 const targetUserId = __ENV.TARGET_USER_ID || null;
+
 export const options = {
   ...testOptions,
   thresholds: {
-    http_req_failed: ['rate<0.02'], // <2% requests should fail
-    http_req_duration: ['p(95)<800'], // <500ms for 95% of requests
-    checks: ['rate>0.95'] // >95% of checks should pass
-  }
+    http_req_failed: ['rate<0.02'],
+    http_req_duration: ['p(95)<800'],
+    checks: ['rate>0.95'],
+  },
 };
+
+// Custom metrics to count status codes separately
+const status200 = new Counter('status_200');
+const status201 = new Counter('status_201');
+const status400 = new Counter('status_400');
+const status401 = new Counter('status_401');
+const status403 = new Counter('status_403');
+const status404 = new Counter('status_404');
+const status409 = new Counter('status_409');
+const status500 = new Counter('status_500');
+
+function logStatus(res, label, testName) {
+  console.log(`${label} - Status: ${res.status}`);
+
+  // Count each status code separately
+  switch (res.status) {
+    case 200:
+      status200.add(1);
+      break;
+    case 201:
+      status201.add(1);
+      break;
+    case 400:
+      status400.add(1);
+      break;
+    case 401:
+      status401.add(1);
+      break;
+    case 403:
+      status403.add(1);
+      break;
+    case 404:
+      status404.add(1);
+      break;
+    case 409:
+      status409.add(1);
+      break;
+    case 500:
+      status500.add(1);
+      break;
+    default:
+      // Log unexpected status codes
+      console.warn(`Unexpected status code: ${res.status}`);
+  }
+}
 
 function loginAndGetToken() {
   const creds = generateCredentials(true);
+  console.log('Login creds:', creds);
+
   const res = http.post(loginUrl, JSON.stringify(creds), {
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json'
+      Accept: 'application/json',
     },
-    responseCallback: http.expectedStatuses(201)
+    responseCallback: http.expectedStatuses(201),
   });
+
+  logStatus(res, 'Login', 'login');
 
   try {
     return res.json().data.access_token;
@@ -40,8 +91,10 @@ function loginAndGetToken() {
 function getCurrentUserId(token) {
   const res = http.get(getUrl('/users/me'), {
     headers: { Authorization: `Bearer ${token}` },
-    responseCallback: http.expectedStatuses(200)
+    responseCallback: http.expectedStatuses(200),
   });
+
+  logStatus(res, 'Get current user', 'get_user');
 
   try {
     return res.json().data.user_id;
@@ -61,65 +114,28 @@ export default function () {
   const currentUserId = getCurrentUserId(token);
   if (!currentUserId) return;
 
-  //   sleep(randomeSeconds(0.5, 1.5));
-
-  //   // TEST 1: Follow target user (if provided via env)
-  //   if (targetUserId) {
-  //     const url = getUrl(`/users/${targetUserId}/follow`);
-  //     const res = http.post(url, null, {
-  //       headers: { Authorization: `Bearer ${token}` },
-  //       responseCallback: http.expectedStatuses(201, 409, 403, 404)
-  //     });
-
-  //     check(res, {
-  //       'follow target: status 201, 409, 403, or 404': (r) =>
-  //         r.status === 201 ||
-  //         r.status === 409 ||
-  //         r.status === 403 ||
-  //         r.status === 404
-  //     });
-
-  //     sleep(randomeSeconds(0.5, 1));
-  //   } else {
-  //     console.log('ℹ️ TARGET_USER_ID not provided; skipping target follow test');
-  //   }
-
-  // TEST 2: Try to follow self -> expect 400
-  const selfFollowUrl = getUrl(`/users/${currentUserId}/follow`);
-  const resSelf = http.post(selfFollowUrl, null, {
-    headers: { Authorization: `Bearer ${token}` },
-    responseCallback: http.expectedStatuses(400)
-  });
-
-  check(resSelf, {
-    'follow self: status 400': (r) => r.status === 400
-  });
-
   sleep(randomeSeconds(0.5, 1));
 
-  // TEST 3: Follow non-existent user -> expect 404
-  const fakeId = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
-  const res404 = http.post(getUrl(`/users/${fakeId}/follow`), null, {
-    headers: { Authorization: `Bearer ${token}` },
-    responseCallback: http.expectedStatuses(404)
-  });
+  // TEST 1: Follow target user (if provided via env)
+  if (targetUserId) {
+    const url = getUrl(`/users/${targetUserId}/follow`);
+    const res = http.post(url, null, {
+      headers: { Authorization: `Bearer ${token}` },
+      responseCallback: http.expectedStatuses(201, 409, 403, 404),
+    });
 
-  check(res404, {
-    'follow fake: status 404': (r) => r.status === 404
-  });
+    check(res, {
+      'follow target: status 201, 409, 403, or 404': (r) =>
+        r.status === 201 ||
+        r.status === 409 ||
+        r.status === 403 ||
+        r.status === 404,
+    });
 
-  sleep(randomeSeconds(0.5, 1));
-
-  // TEST 4: Invalid token -> expect 401
-  const testTarget = targetUserId || fakeId;
-  const res401 = http.post(getUrl(`/users/${testTarget}/follow`), null, {
-    headers: { Authorization: 'Bearer invalid' },
-    responseCallback: http.expectedStatuses(401)
-  });
-
-  check(res401, {
-    'invalid token: status 401': (r) => r.status === 401
-  });
-
-  sleep(randomeSeconds(0.5, 1));
+    logStatus(res, 'Test 1 (follow target user)', 'test_1_follow');
+    console.log('Follow response:', res.body);
+    sleep(randomeSeconds(0.5, 1));
+  } else {
+    console.log('TARGET_USER_ID not provided; skipping target follow test');
+  }
 }

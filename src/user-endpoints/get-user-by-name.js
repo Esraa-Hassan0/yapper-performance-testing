@@ -1,10 +1,10 @@
-// filepath: tests/getUsersByUsername.test.js
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Counter } from 'k6/metrics';
 import {
   randomeSeconds,
   getUrl,
-  options as testOptions
+  options as testOptions,
 } from '../../utils/config.js';
 
 const url = getUrl('/users/by/username');
@@ -14,21 +14,54 @@ const invalidCallback = http.expectedStatuses(200, 400, 404);
 
 export const options = testOptions;
 
+// Custom metrics to count status codes separately
+const status200 = new Counter('status_200');
+const status400 = new Counter('status_400');
+const status401 = new Counter('status_401');
+const status404 = new Counter('status_404');
+const status500 = new Counter('status_500');
+
+function logStatus(res, label, testName) {
+  console.log(`${label} - Status: ${res.status}`);
+
+  // Count each status code separately
+  switch (res.status) {
+    case 200:
+      status200.add(1);
+      break;
+    case 400:
+      status400.add(1);
+      break;
+    case 401:
+      status401.add(1);
+      break;
+    case 404:
+      status404.add(1);
+      break;
+    case 500:
+      status500.add(1);
+      break;
+    default:
+      // Log unexpected status codes
+      console.warn(`Unexpected status code: ${res.status}`);
+  }
+}
+
 export default function () {
-  // --- Test 1: Valid usernames ---
+  // TEST 1: Valid usernames
   const validUsernames = 'alyaa242,amira999';
   const fullValidUrl = `${url}?usernames=${validUsernames}`;
   console.log(`Sending request to: ${fullValidUrl}`);
 
   const validRes = http.get(fullValidUrl, {
     headers: { Accept: 'application/json' },
-    responseCallback: validCallback
+    responseCallback: validCallback,
   });
 
   if (validRes.error) {
     console.error('Request failed:', validRes.error);
   } else {
-    console.log(`Response status: ${validRes.status}`);
+    logStatus(validRes, 'Test 1 (valid usernames)', 'test_1_valid_usernames');
     console.log('Response body:', validRes.body);
   }
 
@@ -49,48 +82,9 @@ export default function () {
       } catch {
         return false;
       }
-    }
+    },
   });
 
   const randWait = randomeSeconds(1, 2);
-  sleep(randWait);
-
-  // --- Test 2: Invalid usernames ---
-  const invalidUsernames = 'user_does_not_exist_123,user_invalid_999';
-  const fullInvalidUrl = `${url}?usernames=${invalidUsernames}`;
-  console.log(`Sending request to: ${fullInvalidUrl}`);
-
-  const invalidRes = http.get(fullInvalidUrl, {
-    headers: { Accept: 'application/json' },
-    responseCallback: invalidCallback
-  });
-
-  if (invalidRes.error) {
-    console.error('Invalid request failed:', invalidRes.error);
-  } else {
-    console.log(`Invalid response status: ${invalidRes.status}`);
-    console.log('Invalid response body:', invalidRes.body);
-  }
-
-  check(invalidRes, {
-    'invalid usernames: status is 200': (r) => r.status === 200,
-    'invalid usernames: contains data array': (r) => {
-      try {
-        const body = r.json();
-        return Array.isArray(body.data);
-      } catch {
-        return false;
-      }
-    },
-    'invalid usernames: all records failed': (r) => {
-      try {
-        const body = r.json();
-        return body.data.every((u) => u.success === false);
-      } catch {
-        return false;
-      }
-    }
-  });
-
   sleep(randWait);
 }

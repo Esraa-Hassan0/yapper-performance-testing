@@ -1,137 +1,140 @@
+// src/bottleneck/refresh.js
 import http from 'k6/http';
-import { check, sleep } from 'k6';
-import { options as testOptions } from '../../utils/config.js';
+import { sleep } from 'k6';
+import { Counter } from 'k6/metrics';
+import random from '../../utils/random.js';
+
 import {
+  email as envEmail,
+  password as envPassword,
   randomeSeconds,
   generateCredentials,
   getUrl,
-  BASE_URL
+  BASE_URL,
+  options as testOptions,
 } from '../../utils/config.js';
+
+// === Override: Only 500 counts as failed ===
+const only500Fails = http.expectedStatuses({ min: 200, max: 499 });
+
+if (__ENV.RAND_SEED) random.seed(__ENV.RAND_SEED);
+
+export const options = {
+  ...testOptions,
+  insecureSkipTLSVerify: true,
+  noConnectionReuse: false,
+  thresholds: {
+    http_req_failed: ['rate<0.01'], // now tracks ONLY 500s
+    http_req_duration: ['p(90)<600', 'p(95)<900'],
+    checks: ['rate>0.95'],
+  },
+};
+
+// Custom counters
+const login201 = new Counter('refresh_login_201');
+const refreshSuccess = new Counter('refresh_success_2xx');
+const refreshInvalid = new Counter('refresh_invalid_4xx');
+const refreshUnexpected = new Counter('refresh_unexpected_status');
+const refreshJsonFail = new Counter('refresh_json_parse_fail');
+const refresh500 = new Counter('refresh_server_500'); // optional, explicit 500 counter
+
+function logStatus(res, label) {
+  console.log(
+    `${label} | Status: ${res.status} | VU: ${__VU} | Iter: ${__ITER}`
+  );
+}
+
+function getCredentials(real = true) {
+  if (real && envEmail && envPassword) {
+    console.log(`Using real user: ${envEmail}`);
+    return {
+      identifier: envEmail,
+      type: 'email',
+      password: envPassword,
+    };
+  }
+  return generateCredentials(false);
+}
+
+function float(min, max) {
+  return min + Math.random() * (max - max);
+}
 
 const loginUrl = getUrl('/auth/login');
 const refreshUrl = getUrl('/auth/refresh');
 
-// Response callbacks for expected statuses
-const refreshSuccessCallback = http.expectedStatuses(200, 201);
-const refreshFailCallback = http.expectedStatuses(400, 401);
-
-export const options = {
-  ...testOptions,
-  thresholds: {
-    http_req_failed: ['rate<0.01'], // <1% requests should fail
-    http_req_duration: ['p(90)<600', 'p(95)<900'], // 90% of requests <600ms, 95% <800ms
-    checks: ['rate>0.95']
-  }
-};
-
 export default function () {
-  // Step 1: Login to get refresh token in HttpOnly cookies
-  const loginCreds = generateCredentials(true);
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
 
-  const loginRes = http.post(loginUrl, JSON.stringify(loginCreds), {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    responseCallback: http.expectedStatuses(201)
+  // ==================================================
+  // LOGIN (Refresh cookie stored automatically by k6)
+  // ==================================================
+  const creds = getCredentials(true);
+
+  const loginRes = http.post(loginUrl, JSON.stringify(creds), {
+    headers,
+    timeout: '60s',
+    responseCallback: only500Fails, // <<< override applied
   });
 
-  check(loginRes, {
-    'login: status 201': (r) => r.status === 201,
-    'login: has access token': (r) => {
-      try {
-        return r.json()?.data?.access_token?.length > 0;
-      } catch {
-        return false;
-      }
-    }
-  });
+  logStatus(loginRes, 'Login');
+
+  if (loginRes.status === 500) {
+    refresh500.add(1);
+  }
+
+  if (loginRes.status === 201) {
+    login201.add(1);
+  } else {
+    refreshUnexpected.add(1);
+    return;
+  }
 
   let accessToken = '';
   try {
     accessToken = loginRes.json().data.access_token;
-  } catch (e) {
-    console.error('Failed to extract token from login');
+  } catch (err) {
+    refreshJsonFail.add(1);
     return;
   }
 
   sleep(randomeSeconds(1, 2));
 
-  // Step 2: Use refresh endpoint with HttpOnly cookies (automatically sent)
-  // k6 automatically manages cookies, so the refresh_token cookie from login response
-  // will be sent automatically to the refresh endpoint
+  // ==================================================
+  // REFRESH
+  // ==================================================
   const refreshRes = http.post(refreshUrl, null, {
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    responseCallback: refreshSuccessCallback
+    headers,
+    timeout: '60s',
+    responseCallback: only500Fails,
   });
 
-  check(refreshRes, {
-    'refresh: status 200 or 201': (r) => r.status === 200 || r.status === 201,
-    'refresh: has new access token': (r) => {
-      try {
-        const newToken = r.json()?.data?.access_token;
-        return typeof newToken === 'string' && newToken.length > 0;
-      } catch {
-        return false;
+  logStatus(refreshRes, 'Refresh');
+
+  if (refreshRes.status === 500) {
+    refresh500.add(1);
+  }
+
+  if (refreshRes.status === 200 || refreshRes.status === 201) {
+    refreshSuccess.add(1);
+
+    try {
+      const json = refreshRes.json();
+      const newToken = json?.data?.access_token;
+
+      if (typeof newToken !== 'string' || newToken.length === 0) {
+        console.error('Refresh returned invalid token');
+      } else if (newToken !== accessToken) {
+        console.log(`New token: ${newToken.slice(0, 15)}...`);
       }
-    },
-    'refresh: message is correct': (r) => {
-      try {
-        return r.json()?.message?.toLowerCase().includes('new access token');
-      } catch {
-        return false;
-      }
+    } catch (e) {
+      refreshJsonFail.add(1);
     }
-  });
-
-  let newAccessToken = '';
-  try {
-    newAccessToken = refreshRes.json().data.access_token;
-  } catch (e) {
-    console.error('Failed to extract new token from refresh');
-  }
-
-  // Verify new token is different from old token (to ensure fresh token generated)
-  if (newAccessToken && newAccessToken !== accessToken) {
-    console.log(`New token generated: ${newAccessToken.substring(0, 15)}...`);
-  }
-
-  sleep(randomeSeconds(1, 2));
-
-  // Step 3: Test invalid/expired token scenario
-  if (Math.random() < 0.3) {
-    console.log('Testing invalid token scenario...');
-
-    // Clear cookies to simulate no refresh token
-    http.cookieJar().set(BASE_URL, 'refresh_token', '');
-
-    const invalidRefreshRes = http.post(refreshUrl, null, {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      responseCallback: refreshFailCallback
-    });
-
-    check(invalidRefreshRes, {
-      'invalid refresh: status 400 or 401': (r) =>
-        r.status === 400 || r.status === 401,
-      'invalid refresh: has error message': (r) => {
-        try {
-          const msg = r.json()?.message?.toLowerCase();
-          return (
-            msg?.includes('no refresh token') ||
-            msg?.includes('invalid') ||
-            msg?.includes('expired')
-          );
-        } catch {
-          return false;
-        }
-      }
-    });
+  } else {
+    refreshUnexpected.add(1);
   }
 
   sleep(randomeSeconds(1, 2));

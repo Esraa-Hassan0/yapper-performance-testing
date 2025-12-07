@@ -106,15 +106,15 @@ export const options = {
     { duration: '1m', target: 100 }, // hold at 100 users
     { duration: '1m', target: 200 }, // ramp-up to 200 users
     { duration: '1m', target: 200 }, // hold at 200 users (stress peak)
-    { duration: '1m', target: 400 }, // ramp-up to 400 users
-    { duration: '1m', target: 400 }, // hold at 400 users (stress peak)
-    { duration: '1m', target: 800 }, // ramp-up to 800 users
-    { duration: '1m', target: 800 }, // hold at 800 users (stress peak)
+    { duration: '1m', target: 1000 }, // ramp-up to 1000 users
+    { duration: '1m', target: 1000 }, // hold at 1000 users (stress peak)
+    { duration: '1m', target: 1500 }, // ramp-up to 1500 users
+    { duration: '1m', target: 1500 }, // hold at 1500 users (stress peak)
     { duration: '1m', target: 0 }, // ramp-down
   ],
   thresholds: {
     http_req_failed: ['rate<0.01'], // <1% requests should fail
-    http_req_duration: ['p(95)<800'], // 95% of requests <600ms
+    http_req_duration: ['p(95)<800'], // 95% of requests <800ms
   },
   cloud: {
     projectID: 5399990,
