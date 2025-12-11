@@ -1,11 +1,11 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Counter } from 'k6/metrics';
 import {
   randomeSeconds,
   generateCredentials,
   getUrl,
-  options as testOptions,
+  countersStatus,
+  secondaryOptions
 } from '../../utils/config.js';
 
 const loginUrl = getUrl('/auth/login');
@@ -14,52 +14,9 @@ const meUrl = getUrl('/users/me');
 // Expected status callbacks
 const loginCallback = http.expectedStatuses(200, 201, 400, 401);
 const meCallback = http.expectedStatuses(200, 401, 404);
+const { logStatus, counters } = countersStatus();
+export const options = secondaryOptions;
 
-export const options = {
-  ...testOptions,
-  thresholds: {
-    http_req_failed: ['rate<0.01'],
-    http_req_duration: ['p(95)<500'],
-    checks: ['rate>0.95'],
-  },
-};
-
-// Custom metrics to count status codes separately
-const status200 = new Counter('status_200');
-const status201 = new Counter('status_201');
-const status400 = new Counter('status_400');
-const status401 = new Counter('status_401');
-const status404 = new Counter('status_404');
-const status500 = new Counter('status_500');
-
-function logStatus(res, label, testName) {
-  console.log(`${label} - Status: ${res.status}`);
-
-  // Count each status code separately
-  switch (res.status) {
-    case 200:
-      status200.add(1);
-      break;
-    case 201:
-      status201.add(1);
-      break;
-    case 400:
-      status400.add(1);
-      break;
-    case 401:
-      status401.add(1);
-      break;
-    case 404:
-      status404.add(1);
-      break;
-    case 500:
-      status500.add(1);
-      break;
-    default:
-      // Log unexpected status codes
-      console.warn(`Unexpected status code: ${res.status}`);
-  }
-}
 
 export default function () {
   // Step 1: Login
