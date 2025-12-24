@@ -3,8 +3,7 @@ import {
   randomIntBetween,
   randomFloatBetween,
   randomItem,
-  randomString
-} from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
+  randomString } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 
 // Lightweight wrapper utilities around k6/random with safer defaults
 export function seed(s) {

@@ -2,8 +2,10 @@ import {
   email as randEmail,
   seed as randSeed,
   string as randString,
-  int as randInt,
+  int as randInt
 } from './random.js';
+
+import { Counter } from 'k6/metrics';
 
 export const BASE_URL = __ENV.BASE_URL;
 export const WAIT_TIME = Number(__ENV.WAIT_TIME) || 1;
@@ -16,6 +18,18 @@ export const password = __ENV.PASSWORD || '';
 if (__ENV.RAND_SEED) {
   randSeed(Number(__ENV.RAND_SEED) || __ENV.RAND_SEED);
 }
+
+export const validUserIds = [
+  '3d6eacb0-fd31-4e6c-b85a-862a1e45bcf7',
+  '30eccf23-3e37-4308-9313-1c3547da14a5',
+  'b36c6d01-f478-4338-86cf-1499526f9ddf',
+  '8b36bd34-b743-4355-8cd1-d215a4cb5050',
+  'b825aee5-903f-4cf0-b52a-3e59923ced60',
+  '98626d50-106e-4c62-a1ff-b30902b5aa34',
+  'c2fb38f9-4865-4d86-bbc5-9782c9e83e2e',
+  '285864e9-2340-4d80-96b3-ea5c2a233474'
+];
+export const myId = 'c2fb38f9-4865-4d86-bbc5-9782c9e83e2e';
 
 /**
  * Generate a random phone number in international format
@@ -50,13 +64,13 @@ export function generateCredentials(realUser = false) {
     return {
       identifier: email,
       type: 'email',
-      password: password,
+      password: password
     };
   }
   return {
     identifier: randEmail('invalid_user'),
     password: randString(30),
-    type: 'email',
+    type: 'email'
   };
 }
 
@@ -110,15 +124,93 @@ export const options = {
     { duration: '1m', target: 1000 }, // hold at 1000 users (stress peak)
     { duration: '1m', target: 1500 }, // ramp-up to 1500 users
     { duration: '1m', target: 1500 }, // hold at 1500 users (stress peak)
-    { duration: '1m', target: 0 }, // ramp-down
+    { duration: '1m', target: 0 } // ramp-down
   ],
   thresholds: {
     http_req_failed: ['rate<0.01'], // <1% requests should fail
-    http_req_duration: ['p(95)<800'], // 95% of requests <800ms
+    http_req_duration: ['p(95)<800'] // 95% of requests <800ms
   },
   cloud: {
-    projectID: 5399990,
-  },
+    projectID: 5399990
+  }
 };
+
+export const secondaryOptions = {
+  stages: [
+    { duration: '10s', target: 100 }, // ramp-up from 0 to 100 users
+    { duration: '15s', target: 100 }, // ramp-up from 0 to 100 users
+
+    { duration: '10s', target: 200 }, // ramp-up from 0 to 100 users
+    { duration: '15s', target: 200 }, // ramp-up from 0 to 100 users
+
+    { duration: '10s', target: 300 }, // ramp-up to 200 users
+    { duration: '15s', target: 300 }, // ramp-up to 200 users
+
+    { duration: '10s', target: 500 }, // ramp-up to 200 users
+    { duration: '15s', target: 500 }, // ramp-up to 200 users
+
+    { duration: '10s', target: 600 }, // ramp-up to 200 users
+    { duration: '15s', target: 600 }, // ramp-up to 200 users
+
+    { duration: '10s', target: 800 }, // ramp-up to 200 users
+    { duration: '15s', target: 800 }, // ramp-up to 200 users
+
+    { duration: '10s', target: 1000 }, // ramp-up to 200 users
+    { duration: '15s', target: 1000 }, // ramp-up to 200 users
+
+    { duration: '10s', target: 1200 }, // ramp-up to 200 users
+    { duration: '15s', target: 1200 }, // ramp-up to 200 users
+
+    { duration: '15s', target: 1300 }, // ramp-up to 200 users
+    { duration: '15s', target: 1300 }, // ramp-up to 200 users
+
+    { duration: '15s', target: 1500 }, // ramp-up to 200 users
+    { duration: '15s', target: 1500 }, // ramp-up to 200 users
+    { duration: '1m', target: 0 } // ramp-down
+  ],
+  thresholds: {
+    http_req_failed: ['rate<0.01'], // <1% requests should fail
+    http_req_duration: ['p(95)<800'] // 95% of requests <800ms
+  },
+  cloud: {
+    projectID: 5399990
+  },
+  insecureSkipTLSVerify: true,
+  noConnectionReuse: false
+};
+
+export function countersStatus() {
+  const counters = {
+    status1xx: new Counter('status_1xx'),
+    status2xx: new Counter('status_2xx'),
+    status3xx: new Counter('status_3xx'),
+    status4xx: new Counter('status_4xx'),
+    status5xx: new Counter('status_5xx'),
+    status500: new Counter('internal_server_error_500')
+  };
+
+  // Function to log and update counters based on response status
+  function logStatus(res, label, testName) {
+    console.log(`${label} - Status: ${res.status}`);
+
+    if (res.status >= 100 && res.status < 200) {
+      counters.status1xx.add(1);
+    } else if (res.status >= 200 && res.status < 300) {
+      counters.status2xx.add(1);
+    } else if (res.status >= 300 && res.status < 400) {
+      counters.status3xx.add(1);
+    } else if (res.status >= 400 && res.status < 500) {
+      counters.status4xx.add(1);
+    } else if (res.status >= 500 && res.status < 600) {
+      counters.status5xx.add(1);
+      if (res.status === 500) {
+        counters.status500.add(1);
+      }
+    }
+  }
+
+  // Return the logStatus function and counters
+  return { logStatus, counters };
+}
 
 export { randEmail, randString };
